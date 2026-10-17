@@ -6,8 +6,8 @@
  *                     没有才显示耗时;**还在跑的行两个都显示** —— 见下面写文件那一支)
  *   搜索              「搜索 <模式>」+ 命中数(D23:搜索是一等类别)
  *   跑命令 · 有人话     折叠块:标题是 agent 给的 description,展开是命令与输出(组件 11)
- *   跑命令 · 没人话     「执行 <命令>」单行,输出不在行里(S8;codex 全程没有 description)
- *   失败              两种写法:只给「失败」按钮,或把原因跟在名字后面 —— 是否有意区分 = S1 待设计答
+ *   跑命令 · 没人话     折叠块:「执行 <命令>」,展开查看命令与输出
+ *   失败              命令与有错误原文的文件行可展开,摘要保留「失败」标记
  *
  * ⚠️ **「执行中」这一档 2026-09-02 加回来了**(OPEND-2419,D3 作废)。原来是「调用跑完
  * 才落行」,代价是一次卡住 14.1 分钟的下载在界面上完全不存在,用户看到「转了 40 分钟
@@ -109,7 +109,7 @@ export function ToolRow({
    * 「自动」的对家是**用户自己掀的**:那一半归 `Foldable` 的 `userToggled` 闩,
    * 一旦用户动过手,下面这个值就再也拨不动它。
    *
-   * 两条各有各的理由,而且**判据不同**:
+   * 只有此刻真的在执行的调用自动展开:
    *
    *  · **此刻真的在跑** → 摊开。输出正一行行长出来,收着就等于让用户对着一行静止的
    *    字干等几十秒(稿子 `body-components.html:1010` 的 `<details class="fold" open>`)。
@@ -126,12 +126,12 @@ export function ToolRow({
    *    `build-turn-blocks` 的 `closeRunningSegments` 把这条规矩写在 todo 那一半上,
    *    逐字是「标成完成是替 agent 说了它没说过的话」。工具行同理。
    *
-   *  · **失败** → 摊开。报错原文是这时候唯一要读的东西(稿子 `:1018` 的
-   *    `fold is-fail open`)。这一条和轮次跑没跑**无关**:失败是结算过的终态。
+   *  · **失败** → 默认收起,按需手动展开错误正文。2026-10-17 的安装反馈
+   *    推翻了稿子 `:1018` 的 `fold is-fail open`;失败标记和展开箭头仍然保留。
    *
    * 判据钉在 `tests/components/chat/stopped-run-row-collapse.test.tsx`。
    */
-  const lifecycleOpen = (row.pending && running) || row.failed;
+  const lifecycleOpen = row.pending && running && !row.failed;
 
   /**
    * 这次失败**有没有原文可给**。
@@ -268,8 +268,8 @@ export function ToolRow({
    * 两支的差别只剩**有没有原文可给** —— 有就能展开,没有就是单行(见下)。
    * 摘要不再拼原文:展开之后同一段话出现两遍。
    *
-   * 「收起时看不到原因」不是代价 —— 失败行默认就是展开的(共用上面那个
-   * `lifecycleOpen`,稿子 `:1018` 的 `open`),原文一上屏就在,只是落在第二行。
+   * 失败行默认收起,用户通过箭头按需查看错误原文(2026-10-17 安装反馈)。
+   * 开合仍由共用的 `lifecycleOpen` 与用户手动选择共同决定。
    *
    * 正文复用 `Terminal`(`.term`:`max-height: 104px` + `overflow-y: auto` +
    * 贴底跟随),不另写一套:一段几百字符的 stderr 和一段命令输出在这一层是同一件
@@ -321,11 +321,12 @@ export function ToolRow({
   /*
    * 跑命令 · 有人话标题:折叠块(组件 11)。
    *
-   * 默认状态逐字照稿子(`docs/design/chat-panel/src/body-components.html:1002-1021`
+   * 历史稿子(`docs/design/chat-panel/src/body-components.html:1002-1021`
    * 的 `cmp-meta`):「**执行中展开 → 完成收起**」。三格样例各自是:
    *   · `:1010-1011` 执行中 —— `<details class="fold" open>`,正文是命令 + 实时输出
    *   · `:1014-1015` 成功   —— `<details class="fold">`,不带 `open`
    *   · `:1018-1019` 失败   —— `<details class="fold is-fail" open>`,报错原文是这时候唯一要读的东西
+   * 失败态现按 2026-10-17 安装反馈默认收起,按需展开;执行中和成功态规则不变。
    *
    * ⚠️ 这里原来是 `defaultOpen={row.failed}` —— **只有失败展开,执行中漏了**。
    * 叠上 `deferBody`(收起的折叠块连 body 都不挂载),后果是一条跑了 57 秒的命令,
@@ -418,11 +419,9 @@ export function ToolRow({
    *    拿去截命令会把 `wc -l a.md transcript.html` 截成 `wc -l a.md tr….html`,
    *    读起来像另一条命令。收起时的截断归 CSS 的 `text-overflow`。
    *  · **开合走上面那个共用的 `lifecycleOpen`** —— 和有标题那支同一个值,不在这里
-   *    另写一份。它的 `row.failed` 那一项在这一支上永假(条件里带 `!row.failed`,
-   *    失败的命令行落到下面的兜底单行),但共用一个量比复制一个"这里刚好用不到"的
-   *    简化版更难写歪:两支的开合规则从此只有一处可改。
+   *    另写一份。失败也保留折叠块(#8831):默认收起,按需查看错误,用户手动开合优先。
    */
-  if (row.command && row.rawTitle && !row.failed) {
+  if (row.command && row.rawTitle) {
     return (
       <Foldable
         summary={(
@@ -431,11 +430,13 @@ export function ToolRow({
             <span className={styles.name}>
               {t('chat.record.verb.exec')} <FileButton path={row.command} label={row.title} />
             </span>
+            {failButton}
           </>
         )}
         elapsed={elapsed ?? (row.pending ? '' : undefined)}
         lifecycleOpen={lifecycleOpen}
         deferBody={deferBody}
+        className={row.failed ? styles.fail : undefined}
       >
         <div className={styles.code}>
           <div className={`${styles.term} ${styles.cmd}`}><div>{row.command}</div></div>
