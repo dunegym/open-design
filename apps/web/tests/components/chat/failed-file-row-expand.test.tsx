@@ -30,7 +30,8 @@
  * 摘要恒是 `{动词} {文件名}` + 「失败」+ 耗时(逐字照抄稿子 `:917` 那一行),
  * 原文进正文。**两支的差别从此只剩「有没有原文可给」**——有就能展开,没有就是单行。
  *
- * 2026-10-17 安装反馈要求失败行默认收起,用户按需展开;文件与命令共用这条规则。
+ * Installation feedback on 2026-10-17 requires command and file failures to stay
+ * collapsed by default, with error details available through the manual toggle.
  *
  * ── 防假绿 ────────────────────────────────────────────────────────────────
  *
